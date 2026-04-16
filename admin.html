@@ -7,18 +7,55 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Bebas+Neue&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyApBVLKgpwz75KOh7Sr7b3SWRjy1O0PVts",
+    authDomain: "catalogotestevaspi.firebaseapp.com",
+    projectId: "catalogotestevaspi",
+    storageBucket: "catalogotestevaspi.firebasestorage.app",
+    messagingSenderId: "537821265721",
+    appId: "1:537821265721:web:94e4c2523b6e4e184b32e8",
+    measurementId: "G-ZY10L9ZT29"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expõe funções globais para o resto do código
+  window._fbGetItems = async () => {
+    try {
+      const snap = await getDoc(doc(db, "catalogo", "produtos"));
+      if (snap.exists()) return snap.data().items || [];
+      return [];
+    } catch(e) { console.error("Firebase read error:", e); return []; }
+  };
+
+  window._fbSetItems = async (items) => {
+    try {
+      await setDoc(doc(db, "catalogo", "produtos"), { items, updatedAt: new Date().toISOString() });
+      return true;
+    } catch(e) { console.error("Firebase write error:", e); return false; }
+  };
+
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event("firebase-ready"));
+</script>
 <style>
 :root{
-  --red:#C8102E;--red-d:#a00d25;--red-l:rgba(200,16,46,.1);
-  --bg:#F0F0F0;--surf:#fff;--surf2:#F5F5F5;--surf3:#EBEBEB;
-  --brd:#DEDEDE;--brd2:#C0C0C0;
-  --txt:#1C1C1C;--txt2:#555;--txt3:#999;
-  --grn:#1a7a35;--grn-bg:#eef7f0;
-  --warn:#d17200;--warn-bg:#fff7ed;
-  --info:#0066cc;--info-bg:#eef4ff;
-  --r:6px;--sh:0 1px 3px rgba(0,0,0,.09);--sh2:0 4px 20px rgba(0,0,0,.14);
-  --fd:'Bebas Neue',sans-serif;--fb:'DM Sans',sans-serif;
-  --sw:220px;
+--red:#C8102E;--red-d:#a00d25;--red-l:rgba(200,16,46,.1);
+--bg:#F0F0F0;--surf:#fff;--surf2:#F5F5F5;--surf3:#EBEBEB;
+--brd:#DEDEDE;--brd2:#C0C0C0;
+--txt:#1C1C1C;--txt2:#555;--txt3:#999;
+--grn:#1a7a35;--grn-bg:#eef7f0;
+--warn:#d17200;--warn-bg:#fff7ed;
+--info:#0066cc;--info-bg:#eef4ff;
+--r:6px;--sh:0 1px 3px rgba(0,0,0,.09);--sh2:0 4px 20px rgba(0,0,0,.14);
+--fd:'Bebas Neue',sans-serif;--fb:'DM Sans',sans-serif;
+--sw:220px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -31,8 +68,15 @@ a{color:inherit;text-decoration:none}
 ::-webkit-scrollbar-track{background:var(--surf2)}
 ::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
 
+/* ── LOADING OVERLAY ── */
+#loadingOverlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:14px}
+.load-logo{font-family:var(--fd);font-size:42px;color:var(--red);letter-spacing:2px}
+.load-msg{font-size:12px;color:var(--txt3);letter-spacing:1px}
+.load-spin{width:28px;height:28px;border:3px solid var(--brd);border-top-color:var(--red);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
 /* ── LOCK ── */
-#lockScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999}
+#lockScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;display:none}
 .lock-box{background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:36px 32px;max-width:360px;width:100%;box-shadow:var(--sh2);text-align:center}
 .lock-logo{font-family:var(--fd);font-size:36px;color:var(--red);letter-spacing:1px;margin-bottom:4px}
 .lock-sub{font-size:11px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;margin-bottom:24px}
@@ -65,6 +109,13 @@ a{color:inherit;text-decoration:none}
 .panel{display:none;padding:18px 20px;flex:1}
 .panel.on{display:block}
 
+/* Firebase sync status */
+.sync-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600}
+.sync-ok{background:var(--grn-bg);color:var(--grn);border:1px solid rgba(26,122,53,.3)}
+.sync-saving{background:var(--warn-bg);color:var(--warn);border:1px solid #f0b040}
+.sync-err{background:rgba(200,16,46,.08);color:var(--red);border:1px solid rgba(200,16,46,.3)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:600;font-family:var(--fb);cursor:pointer;border:none;transition:filter .12s,opacity .12s}
 .btn:disabled{opacity:.4;cursor:not-allowed}
@@ -92,27 +143,14 @@ a{color:inherit;text-decoration:none}
 code{background:var(--surf2);padding:1px 6px;border-radius:3px;font-size:11px;border:1px solid var(--brd)}
 #fileInput{display:none}
 
-/* Inline tag toggle buttons na tabela */
-.tag-toggle{
-  font-size:14px;line-height:1;padding:2px 5px;border-radius:4px;
-  cursor:pointer;border:1px solid var(--brd);background:var(--surf2);
-  transition:all .1s;display:inline-block;
-}
+.tag-toggle{font-size:14px;line-height:1;padding:2px 5px;border-radius:4px;cursor:pointer;border:1px solid var(--brd);background:var(--surf2);transition:all .1s;display:inline-block}
 .tag-toggle:hover{border-color:var(--brd2);background:var(--surf3)}
 .tag-on-promo{background:var(--grn-bg);border-color:rgba(26,122,53,.4)}
 .tag-on-novo{background:#eef4ff;border-color:rgba(0,85,170,.3)}
 .tag-on-top{background:#fef9ec;border-color:rgba(184,134,11,.4)}
 
-/* Colunas esperadas — visual destaque */
-.col-schema{
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  flex-wrap:wrap;margin:8px 0 14px;
-}
-.col-tag{
-  display:flex;align-items:center;gap:4px;
-  background:var(--surf2);border:1.5px solid var(--brd);border-radius:4px;
-  padding:3px 9px;font-size:11px;font-weight:600;color:var(--txt2);
-}
+.col-schema{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin:8px 0 14px}
+.col-tag{display:flex;align-items:center;gap:4px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:4px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--txt2)}
 .col-tag.required{border-color:rgba(200,16,46,.4);color:var(--red);background:var(--red-l)}
 .col-arrow{color:var(--txt3);font-size:14px;font-weight:300}
 
@@ -170,7 +208,6 @@ tr.row-edit td{background:#f4f0ff}
 .fld input,.fld select,.fld textarea{width:100%;border:1.5px solid var(--brd);border-radius:var(--r);padding:7px 10px;font-size:13px;outline:none;transition:border-color .15s;background:var(--surf)}
 .fld input:focus,.fld select:focus{border-color:var(--red)}
 .fld-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fld-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 
 /* ── IMPORT MODE MODAL ── */
 .imp-opts{display:flex;flex-direction:column;gap:8px}
@@ -190,87 +227,32 @@ tr.row-edit td{background:#f4f0ff}
 .danger-zone{border-color:rgba(200,16,46,.4)}
 
 /* ── AGRUPAMENTOS PANEL ── */
-.grp-toolbar{
-  display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;
-}
-.grp-search{
-  flex:1;max-width:280px;
-  background:var(--surf);border:1.5px solid var(--brd);border-radius:var(--r);
-  padding:6px 10px;font-size:12px;outline:none;
-}
+.grp-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.grp-search{flex:1;max-width:280px;background:var(--surf);border:1.5px solid var(--brd);border-radius:var(--r);padding:6px 10px;font-size:12px;outline:none}
 .grp-search:focus{border-color:var(--red)}
-.grp-count-badge{
-  font-size:11px;color:var(--txt3);
-  background:var(--surf2);border:1px solid var(--brd);
-  padding:3px 10px;border-radius:20px;white-space:nowrap;
-}
-/* Card de grupo */
-.gc{
-  background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);
-  margin-bottom:8px;overflow:hidden;
-}
-.gc-head{
-  display:flex;align-items:center;gap:10px;padding:10px 14px;
-  cursor:pointer;user-select:none;
-  transition:background .1s;
-}
+.grp-count-badge{font-size:11px;color:var(--txt3);background:var(--surf2);border:1px solid var(--brd);padding:3px 10px;border-radius:20px;white-space:nowrap}
+.gc{background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.gc-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;transition:background .1s}
 .gc-head:hover{background:var(--surf2)}
 .gc-head.open{border-bottom:1px solid var(--brd)}
-.gc-name{
-  flex:1;font-weight:700;font-size:13px;color:var(--txt);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.gc-cnt{
-  font-size:11px;color:var(--txt3);background:var(--surf2);
-  border:1px solid var(--brd);padding:1px 8px;border-radius:10px;
-  white-space:nowrap;flex-shrink:0;
-}
-.gc-chevron{
-  flex-shrink:0;color:var(--txt3);
-  transition:transform .15s;
-}
+.gc-name{flex:1;font-weight:700;font-size:13px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-cnt{font-size:11px;color:var(--txt3);background:var(--surf2);border:1px solid var(--brd);padding:1px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.gc-chevron{flex-shrink:0;color:var(--txt3);transition:transform .15s}
 .gc-head.open .gc-chevron{transform:rotate(180deg)}
 .gc-body{display:none;padding:0}
 .gc-body.open{display:block}
-/* Linha de item dentro do grupo */
-.gi-row{
-  display:flex;align-items:center;gap:8px;
-  padding:7px 14px;border-bottom:1px solid var(--brd);
-  font-size:12px;
-}
+.gi-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--brd);font-size:12px}
 .gi-row:last-child{border-bottom:none}
 .gi-pn{font-family:var(--fd);font-size:12px;color:var(--red);flex-shrink:0;min-width:72px}
 .gi-modelo{font-size:11px;color:var(--txt3);flex-shrink:0;min-width:60px}
 .gi-var{flex:1;color:var(--txt2)}
 .gi-acts{margin-left:auto;display:flex;gap:4px;flex-shrink:0}
-/* Ações do grupo */
-.gc-foot{
-  padding:8px 14px;background:var(--surf2);
-  display:flex;align-items:center;gap:6px;
-  border-top:1px solid var(--brd);
-}
-/* Inline "mover para grupo" na tabela */
-.btn-move{
-  font-size:10px;padding:2px 7px;border-radius:4px;
-  background:var(--info-bg);color:var(--info);
-  border:1px solid #a0c4f0;font-family:var(--fb);font-weight:600;
-  cursor:pointer;transition:all .1s;white-space:nowrap;
-}
+.gc-foot{padding:8px 14px;background:var(--surf2);display:flex;align-items:center;gap:6px;border-top:1px solid var(--brd)}
+.btn-move{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--info-bg);color:var(--info);border:1px solid #a0c4f0;font-family:var(--fb);font-weight:600;cursor:pointer;transition:all .1s;white-space:nowrap}
 .btn-move:hover{background:#d0e8ff}
-/* Chip do grupo na tabela — clicável para renomear */
-.base-chip{
-  display:inline-flex;align-items:center;gap:4px;
-  font-size:11px;font-weight:700;color:var(--red);
-  background:var(--red-l);padding:2px 7px;border-radius:4px;
-  cursor:default;max-width:160px;
-}
+.base-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--red);background:var(--red-l);padding:2px 7px;border-radius:4px;cursor:default;max-width:160px}
 .base-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* Modal renomear grupo */
-.rename-preview{
-  background:var(--surf2);border:1px solid var(--brd);border-radius:var(--r);
-  padding:8px 12px;font-size:11px;color:var(--txt2);margin-top:8px;
-  max-height:120px;overflow-y:auto;
-}
+.rename-preview{background:var(--surf2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--txt2);margin-top:8px;max-height:120px;overflow-y:auto}
 .rename-preview strong{color:var(--red)}
 
 /* ── TOAST ── */
@@ -290,6 +272,13 @@ tr.row-edit td{background:#f4f0ff}
 </style>
 </head>
 <body>
+
+<!-- LOADING -->
+<div id="loadingOverlay">
+  <div class="load-logo">VASPI</div>
+  <div class="load-spin"></div>
+  <div class="load-msg">Conectando ao Firebase…</div>
+</div>
 
 <!-- LOCK -->
 <div id="lockScreen">
@@ -334,191 +323,171 @@ tr.row-edit td{background:#f4f0ff}
 <!-- MAIN -->
 <div class="app-main">
 
-  <!-- DASHBOARD -->
-  <section class="panel on" id="panel-dashboard">
-    <div class="ph"><h2>Dashboard</h2></div>
-    <div style="padding:18px 20px">
-      <div class="stat-row">
-        <div class="stat"><div class="stat-n" id="st-items">0</div><div class="stat-l">Linhas (PNs)</div></div>
-        <div class="stat"><div class="stat-n" id="st-bases">0</div><div class="stat-l">Produtos Base (cards)</div></div>
-        <div class="stat"><div class="stat-n" id="st-modelos">0</div><div class="stat-l">Modelos únicos</div></div>
-        <div class="stat"><div class="stat-n" id="st-edited" style="color:#9966ff">0</div><div class="stat-l">Editados manualmente</div></div>
-        <div class="stat"><div class="stat-n" id="st-promo" style="color:var(--grn)">0</div><div class="stat-l">🔥 Em promoção</div></div>
-        <div class="stat"><div class="stat-n" id="st-novo" style="color:#0055aa">0</div><div class="stat-l">✨ Novidades</div></div>
-        <div class="stat"><div class="stat-n" id="st-top" style="color:#b8860b">0</div><div class="stat-l">⭐ Mais Vendidos</div></div>
+<!-- DASHBOARD -->
+<section class="panel on" id="panel-dashboard">
+  <div class="ph">
+    <h2>Dashboard</h2>
+    <span id="syncStatus" class="sync-badge sync-ok"><span class="sync-dot"></span>Firebase OK</span>
+  </div>
+  <div style="padding:18px 20px">
+    <div class="stat-row">
+      <div class="stat"><div class="stat-n" id="st-items">0</div><div class="stat-l">Linhas (PNs)</div></div>
+      <div class="stat"><div class="stat-n" id="st-bases">0</div><div class="stat-l">Produtos Base (cards)</div></div>
+      <div class="stat"><div class="stat-n" id="st-modelos">0</div><div class="stat-l">Modelos únicos</div></div>
+      <div class="stat"><div class="stat-n" id="st-edited" style="color:#9966ff">0</div><div class="stat-l">Editados manualmente</div></div>
+      <div class="stat"><div class="stat-n" id="st-promo" style="color:var(--grn)">0</div><div class="stat-l">🔥 Em promoção</div></div>
+      <div class="stat"><div class="stat-n" id="st-novo" style="color:#0055aa">0</div><div class="stat-l">✨ Novidades</div></div>
+      <div class="stat"><div class="stat-n" id="st-top" style="color:#b8860b">0</div><div class="stat-l">⭐ Mais Vendidos</div></div>
+    </div>
+    <div class="sec-title">Status</div>
+    <div id="dash-status" style="background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:14px;font-size:12px;color:var(--txt2)">
+      Carregando dados do Firebase…
+    </div>
+  </div>
+</section>
+
+<!-- IMPORT -->
+<section class="panel" id="panel-import">
+  <div class="ph"><h2>Importar Planilha</h2></div>
+  <div style="padding:18px 20px">
+    <div class="dropzone" id="dropzone">
+      <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" style="margin:0 auto;stroke:var(--brd2)"><path stroke-linecap="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <h3>Arraste a planilha aqui</h3>
+      <p>Formatos aceitos: <code>.xlsx</code> &nbsp;<code>.xls</code> &nbsp;<code>.csv</code></p>
+      <div class="col-schema">
+        <span class="col-tag required">Produto Base (GRID)</span>
+        <span class="col-arrow">→</span>
+        <span class="col-tag">Modelo</span>
+        <span class="col-arrow">→</span>
+        <span class="col-tag">Variação</span>
+        <span class="col-arrow">→</span>
+        <span class="col-tag required">Part Number</span>
+        <span class="col-arrow">+</span>
+        <span class="col-tag">Categoria</span>
+        <span class="col-tag">Linha</span>
+        <span class="col-tag">Promoção</span>
+        <span class="col-tag">Novidade</span>
+        <span class="col-tag">Mais Vendido</span>
       </div>
-      <div class="sec-title">Status</div>
-      <div id="dash-status" style="background:var(--surf);border:1px solid var(--brd);border-radius:var(--r);padding:14px;font-size:12px;color:var(--txt2)">
-        Nenhum item importado. Acesse <strong>Importar Planilha</strong> para começar.
+      <p style="font-size:11px;color:var(--txt3);margin-bottom:14px">Colunas em <span style="color:var(--red);font-weight:700">vermelho</span> são obrigatórias.</p>
+      <button class="btn btn-red" onclick="document.getElementById('fileInput').click()">Selecionar Arquivo</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+    <div class="alerts-box" id="alertsBox">
+      <div class="alerts-hdr">
+        <h4>⚠ Alertas detectados</h4>
+        <button class="btn btn-ghost btn-xs" id="dismissAll">Ignorar todos</button>
+      </div>
+      <div id="alertsList"></div>
+    </div>
+    <div id="importPreview" style="display:none">
+      <div class="sec-title">Prévia — <span id="prevStats"></span></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-red" id="btnConfirmImport">✓ Confirmar Importação</button>
+        <button class="btn btn-ghost" id="btnCancelImport">Cancelar</button>
+      </div>
+      <div class="tbl-wrap" style="max-height:360px;overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Produto Base</th><th>Modelo</th><th>Variação</th><th>PN</th>
+            <th>Categoria</th><th>Linha</th><th>Promo</th><th>Novo</th><th>Top</th><th>Status</th>
+          </tr></thead>
+          <tbody id="prevBody"></tbody>
+        </table>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- IMPORT -->
-  <section class="panel" id="panel-import">
-    <div class="ph"><h2>Importar Planilha</h2></div>
-    <div style="padding:18px 20px">
-      <div class="dropzone" id="dropzone">
-        <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" style="margin:0 auto;stroke:var(--brd2)"><path stroke-linecap="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        <h3>Arraste a planilha aqui</h3>
-        <p>Formatos aceitos: <code>.xlsx</code> &nbsp;<code>.xls</code> &nbsp;<code>.csv</code></p>
-        <!-- Esquema visual das colunas esperadas -->
-        <div class="col-schema">
-          <span class="col-tag required">Produto Base (GRID)</span>
-          <span class="col-arrow">→</span>
-          <span class="col-tag">Modelo</span>
-          <span class="col-arrow">→</span>
-          <span class="col-tag">Variação</span>
-          <span class="col-arrow">→</span>
-          <span class="col-tag required">Part Number</span>
-          <span class="col-arrow">+</span>
-          <span class="col-tag">Categoria</span>
-          <span class="col-tag">Linha</span>
-          <span class="col-tag">Promoção</span>
-          <span class="col-tag">Novidade</span>
-          <span class="col-tag">Mais Vendido</span>
-        </div>
-        <p style="font-size:11px;color:var(--txt3);margin-bottom:14px">
-          Colunas em <span style="color:var(--red);font-weight:700">vermelho</span> são obrigatórias. As demais são opcionais.
-        </p>
-        <button class="btn btn-red" onclick="document.getElementById('fileInput').click()">Selecionar Arquivo</button>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+<!-- ITEMS TABLE -->
+<section class="panel" id="panel-products">
+  <div class="ph">
+    <h2>Itens do Catálogo</h2>
+    <div class="ph-actions">
+      <button class="btn btn-red" id="btnAgruparSel" disabled>Agrupar selecionados (<span id="selCntT">0</span>)</button>
+      <button class="btn btn-danger" id="btnDelSel" disabled>Excluir selecionados</button>
+    </div>
+  </div>
+  <div style="padding:0 20px 20px">
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <input class="tbl-search" id="tSearch" type="search" placeholder="Buscar produto, modelo, variação, PN…">
+        <select class="tbl-sel" id="tBaseFilter"><option value="">Todos os produtos base</option></select>
+        <select class="tbl-sel" id="tCatFilter"><option value="">Todas as categorias</option></select>
+        <select class="tbl-sel" id="tPromoFilter">
+          <option value="">Todas as tags</option>
+          <option value="promo">🔥 Em promoção</option>
+          <option value="novo">✨ Novidades</option>
+          <option value="top">⭐ Mais vendidos</option>
+          <option value="edit">✏ Editados manualmente</option>
+        </select>
+        <span style="margin-left:auto;font-size:11px;color:var(--txt3)" id="tblCount"></span>
       </div>
-
-      <div class="alerts-box" id="alertsBox">
-        <div class="alerts-hdr">
-          <h4>⚠ Alertas detectados</h4>
-          <button class="btn btn-ghost btn-xs" id="dismissAll">Ignorar todos</button>
-        </div>
-        <div id="alertsList"></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th><input type="checkbox" id="chkAll"></th>
+            <th>Produto Base (Grupo)</th><th>Modelo</th><th>Variação</th><th>PN</th>
+            <th>Categoria</th><th>Linha</th><th>Promo</th><th>Novo</th><th>Top</th><th>Ações</th>
+          </tr></thead>
+          <tbody id="tBody"></tbody>
+        </table>
       </div>
-
-      <div id="importPreview" style="display:none">
-        <div class="sec-title">Prévia — <span id="prevStats"></span></div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-red" id="btnConfirmImport">✓ Confirmar Importação</button>
-          <button class="btn btn-ghost" id="btnCancelImport">Cancelar</button>
-        </div>
-        <div class="tbl-wrap" style="max-height:360px;overflow:auto">
-          <table>
-            <thead><tr>
-              <th>Produto Base</th><th>Modelo</th><th>Variação</th><th>PN</th>
-              <th>Categoria</th><th>Linha</th><th>Promo</th><th>Novo</th><th>Top</th><th>Status</th>
-            </tr></thead>
-            <tbody id="prevBody"></tbody>
-          </table>
-        </div>
+      <div class="tbl-pag">
+        <span id="pagInfo"></span>
+        <div class="pag-btns" id="pagBtns"></div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ITEMS TABLE -->
-  <section class="panel" id="panel-products">
-    <div class="ph">
-      <h2>Itens do Catálogo</h2>
-      <div class="ph-actions">
-        <button class="btn btn-red" id="btnAgruparSel" disabled>Agrupar selecionados (<span id="selCntT">0</span>)</button>
-        <button class="btn btn-danger" id="btnDelSel" disabled>Excluir selecionados</button>
-      </div>
+<!-- AGRUPAMENTOS -->
+<section class="panel" id="panel-grupos">
+  <div class="ph">
+    <h2>Agrupamentos</h2>
+    <span style="font-size:12px;color:var(--txt3)">Cada grupo = 1 card no grid do catálogo</span>
+  </div>
+  <div style="padding:18px 20px">
+    <div class="grp-toolbar">
+      <input class="grp-search" id="grpSearch" type="search" placeholder="Buscar grupo…">
+      <span class="grp-count-badge" id="grpCountBadge">0 grupos</span>
     </div>
-    <div style="padding:0 20px 20px">
-      <div class="tbl-wrap">
-        <div class="tbl-toolbar">
-          <input class="tbl-search" id="tSearch" type="search" placeholder="Buscar produto, modelo, variação, PN…">
-          <select class="tbl-sel" id="tBaseFilter"><option value="">Todos os produtos base</option></select>
-          <select class="tbl-sel" id="tCatFilter"><option value="">Todas as categorias</option></select>
-          <select class="tbl-sel" id="tPromoFilter">
-            <option value="">Todas as tags</option>
-            <option value="promo">🔥 Em promoção</option>
-            <option value="novo">✨ Novidades</option>
-            <option value="top">⭐ Mais vendidos</option>
-            <option value="edit">✏ Editados manualmente</option>
-          </select>
-          <span style="margin-left:auto;font-size:11px;color:var(--txt3)" id="tblCount"></span>
-        </div>
-        <div style="overflow-x:auto">
-          <table>
-            <thead><tr>
-              <th><input type="checkbox" id="chkAll"></th>
-              <th>Produto Base (Grupo)</th><th>Modelo</th><th>Variação</th><th>PN</th>
-              <th>Categoria</th><th>Linha</th><th>Promo</th><th>Novo</th><th>Top</th><th>Ações</th>
-            </tr></thead>
-            <tbody id="tBody"></tbody>
-          </table>
-        </div>
-        <div class="tbl-pag">
-          <span id="pagInfo"></span>
-          <div class="pag-btns" id="pagBtns"></div>
-        </div>
-      </div>
+    <div id="grpList"><div class="empty-notice">Nenhum item importado ainda.</div></div>
+  </div>
+</section>
+
+<!-- EXPORT -->
+<section class="panel" id="panel-export">
+  <div class="ph"><h2>Exportar / Backup</h2></div>
+  <div style="padding:18px 20px;max-width:600px">
+
+    <div class="exp-card" style="border-color:rgba(26,122,53,.4);background:rgba(26,122,53,.03)">
+      <h4 style="color:var(--grn)">☁️ Dados no Firebase (automático)</h4>
+      <p>Todos os dados são salvos automaticamente na nuvem. Qualquer dispositivo com a senha acessa e edita em tempo real — sem precisar exportar manualmente.</p>
+      <div id="fbSyncInfo" style="font-size:11px;color:var(--txt3)">Verificando…</div>
     </div>
-  </section>
 
-  <!-- AGRUPAMENTOS -->
-  <section class="panel" id="panel-grupos">
-    <div class="ph">
-      <h2>Agrupamentos</h2>
-      <span style="font-size:12px;color:var(--txt3)">Cada grupo = 1 card no grid do catálogo</span>
+    <div class="exp-card">
+      <h4>↓ Baixar backup local (JSON)</h4>
+      <p>Exporta todos os dados para um arquivo local. Útil como backup de segurança.</p>
+      <button class="btn btn-ghost" id="btnExport">↓ Exportar backup completo</button>
     </div>
-    <div style="padding:18px 20px">
-      <div class="grp-toolbar">
-        <input class="grp-search" id="grpSearch" type="search" placeholder="Buscar grupo…">
-        <span class="grp-count-badge" id="grpCountBadge">0 grupos</span>
-      </div>
-      <div id="grpList">
-        <div class="empty-notice">Nenhum item importado ainda.</div>
-      </div>
+
+    <div class="exp-card">
+      <h4>↑ Restaurar Backup</h4>
+      <p>Restaura dados de um arquivo de backup exportado anteriormente.</p>
+      <button class="btn btn-ghost" id="btnImportBk">↑ Importar backup JSON</button>
+      <input type="file" id="bkFileInput" accept=".json" style="display:none">
     </div>
-  </section>
 
-  <!-- EXPORT -->
-  <section class="panel" id="panel-export">
-    <div class="ph"><h2>Exportar / Backup</h2></div>
-    <div style="padding:18px 20px;max-width:600px">
-
-      <!-- PRINCIPAL: publicar no GitHub -->
-      <div class="exp-card" style="border-color:rgba(200,16,46,.4);background:rgba(200,16,46,.03)">
-        <h4 style="color:var(--red)">📤 Publicar Catálogo no GitHub</h4>
-        <p>Exporta o arquivo <code>produtos.json</code> com todos os itens. Suba este arquivo no seu repositório GitHub para atualizar o catálogo público.</p>
-        <div style="background:var(--surf2);border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--txt2);margin-bottom:12px;line-height:1.7">
-          <strong>Como publicar:</strong><br>
-          1. Clique em <strong>Exportar produtos.json</strong><br>
-          2. Acesse seu repositório no GitHub<br>
-          3. Clique no arquivo <code>produtos.json</code> → botão ✏ (editar) → arraste o novo arquivo<br>
-          4. Clique em <strong>Commit changes</strong><br>
-          5. Aguarde ~1 minuto → catálogo atualizado! 🎉
-        </div>
-        <button class="btn btn-red" id="btnExportJson" style="font-size:13px;padding:9px 20px">
-          ↓ Exportar produtos.json
-        </button>
-        <div id="exportStats" style="margin-top:8px;font-size:11px;color:var(--txt3)"></div>
-      </div>
-
-      <!-- Backup completo -->
-      <div class="exp-card">
-        <h4>Backup Completo (JSON)</h4>
-        <p>Salva todos os dados incluindo marcações de edição manual. Use para restaurar o painel admin em outro dispositivo.</p>
-        <button class="btn btn-ghost" id="btnExport">↓ Exportar backup completo</button>
-      </div>
-
-      <!-- Restaurar backup -->
-      <div class="exp-card">
-        <h4>Restaurar Backup</h4>
-        <p>Restaura dados de um arquivo de backup exportado anteriormente.</p>
-        <button class="btn btn-ghost" id="btnImportBk">↑ Importar backup JSON</button>
-        <input type="file" id="bkFileInput" accept=".json" style="display:none">
-      </div>
-
-      <!-- Perigo -->
-      <div class="exp-card danger-zone">
-        <h4 style="color:var(--red)">Zona de Perigo</h4>
-        <p>Remove todos os dados do armazenamento local. Irreversível sem backup.</p>
-        <button class="btn btn-danger" id="btnClear">⚠ Limpar tudo</button>
-      </div>
+    <div class="exp-card danger-zone">
+      <h4 style="color:var(--red)">Zona de Perigo</h4>
+      <p>Remove todos os dados do Firebase. Irreversível sem backup.</p>
+      <button class="btn btn-danger" id="btnClear">⚠ Limpar tudo</button>
     </div>
-  </section>
-
-</div><!-- /app-main -->
+  </div>
+</section>
+</div>
 
 <!-- MODAL: MODO IMPORTAÇÃO -->
 <div class="ovl" id="importModeOvl">
@@ -551,7 +520,7 @@ tr.row-edit td{background:#f4f0ff}
   <div class="modal">
     <div class="mhd"><h3>Editar Item</h3><button class="mclose" id="editClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>
     <div class="mbody">
-      <div class="info-bar">Itens editados manualmente ficam protegidos contra sobrescrita em importações (salvo autorização).</div>
+      <div class="info-bar">Itens editados manualmente ficam protegidos contra sobrescrita em importações.</div>
       <div class="fld"><label>Produto Base (GRID) *</label><input id="eProdutoBase" type="text" list="ePbList"><datalist id="ePbList"></datalist></div>
       <div class="fld-row">
         <div class="fld"><label>Modelo</label><input id="eModelo" type="text" list="eModeloList"><datalist id="eModeloList"></datalist></div>
@@ -567,10 +536,10 @@ tr.row-edit td{background:#f4f0ff}
       </div>
       <div class="fld-row">
         <div class="fld"><label>✨ Novidade</label>
-          <select id="eNovo"><option value="">Não</option><option value="sim">Sim — marcar como novidade</option></select>
+          <select id="eNovo"><option value="">Não</option><option value="sim">Sim</option></select>
         </div>
         <div class="fld"><label>⭐ Mais Vendido</label>
-          <select id="eTop"><option value="">Não</option><option value="sim">Sim — marcar como top</option></select>
+          <select id="eTop"><option value="">Não</option><option value="sim">Sim</option></select>
         </div>
       </div>
     </div>
@@ -578,88 +547,52 @@ tr.row-edit td{background:#f4f0ff}
   </div>
 </div>
 
-<!-- MODAL: MOVER ITEM PARA GRUPO -->
+<!-- MODAL: MOVER ITEM -->
 <div class="ovl" id="moveOvl">
   <div class="modal" style="max-width:420px">
-    <div class="mhd">
-      <h3>Mover para outro grupo</h3>
-      <button class="mclose" id="moveClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
-    </div>
+    <div class="mhd"><h3>Mover para outro grupo</h3><button class="mclose" id="moveClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>
     <div class="mbody">
-      <p style="font-size:12px;color:var(--txt2);margin-bottom:4px">
-        Movendo: <strong id="movePnLabel" style="color:var(--red)"></strong>
-      </p>
-      <p style="font-size:11px;color:var(--txt3);margin-bottom:12px">
-        Grupo atual: <span id="moveCurrentGroup"></span>
-      </p>
+      <p style="font-size:12px;color:var(--txt2);margin-bottom:4px">Movendo: <strong id="movePnLabel" style="color:var(--red)"></strong></p>
+      <p style="font-size:11px;color:var(--txt3);margin-bottom:12px">Grupo atual: <span id="moveCurrentGroup"></span></p>
       <div class="fld">
         <label>Novo grupo (produto base)</label>
         <input id="moveTarget" type="text" list="moveTargetList" placeholder="Digite ou escolha um grupo existente…" autocomplete="off">
         <datalist id="moveTargetList"></datalist>
       </div>
-      <p style="font-size:11px;color:var(--txt3);margin-top:4px">
-        💡 Digite um nome novo para criar um grupo — ou escolha um existente.
-      </p>
+      <p style="font-size:11px;color:var(--txt3);margin-top:4px">💡 Digite um nome novo para criar um grupo — ou escolha um existente.</p>
     </div>
-    <div class="mfot">
-      <button class="btn btn-ghost" id="moveCancel">Cancelar</button>
-      <button class="btn btn-red" id="moveSave">Mover</button>
-    </div>
+    <div class="mfot"><button class="btn btn-ghost" id="moveCancel">Cancelar</button><button class="btn btn-red" id="moveSave">Mover</button></div>
   </div>
 </div>
 
 <!-- MODAL: RENOMEAR GRUPO -->
 <div class="ovl" id="renameOvl">
   <div class="modal" style="max-width:420px">
-    <div class="mhd">
-      <h3>Renomear grupo</h3>
-      <button class="mclose" id="renameClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
-    </div>
+    <div class="mhd"><h3>Renomear grupo</h3><button class="mclose" id="renameClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>
     <div class="mbody">
-      <div class="fld">
-        <label>Nome atual</label>
-        <input id="renameOld" type="text" readonly style="opacity:.5;cursor:not-allowed">
-      </div>
-      <div class="fld">
-        <label>Novo nome *</label>
-        <input id="renameNew" type="text" placeholder="Novo nome do grupo…">
-      </div>
+      <div class="fld"><label>Nome atual</label><input id="renameOld" type="text" readonly style="opacity:.5;cursor:not-allowed"></div>
+      <div class="fld"><label>Novo nome *</label><input id="renameNew" type="text" placeholder="Novo nome do grupo…"></div>
       <div class="rename-preview" id="renamePreview"></div>
     </div>
-    <div class="mfot">
-      <button class="btn btn-ghost" id="renameCancel">Cancelar</button>
-      <button class="btn btn-red" id="renameSave">Renomear</button>
-    </div>
+    <div class="mfot"><button class="btn btn-ghost" id="renameCancel">Cancelar</button><button class="btn btn-red" id="renameSave">Renomear</button></div>
   </div>
 </div>
 
 <!-- MODAL: AGRUPAR SELECIONADOS -->
 <div class="ovl" id="agruparOvl">
   <div class="modal" style="max-width:460px">
-    <div class="mhd">
-      <h3>Agrupar selecionados</h3>
-      <button class="mclose" id="agruparClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
-    </div>
+    <div class="mhd"><h3>Agrupar selecionados</h3><button class="mclose" id="agruparClose"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>
     <div class="mbody">
-      <p style="font-size:12px;color:var(--txt2);margin-bottom:12px">
-        Os <strong id="agruparCount"></strong> itens selecionados serão movidos para o grupo:
-      </p>
+      <p style="font-size:12px;color:var(--txt2);margin-bottom:12px">Os <strong id="agruparCount"></strong> itens selecionados serão movidos para o grupo:</p>
       <div class="fld">
         <label>Nome do grupo (produto base)</label>
         <input id="agruparTarget" type="text" list="agruparTargetList" placeholder="Nome existente ou novo…" autocomplete="off">
         <datalist id="agruparTargetList"></datalist>
       </div>
-      <p style="font-size:11px;color:var(--txt3);margin-top:4px">
-        💡 Digite um nome existente para juntar a esse grupo, ou um nome novo para criar.
-      </p>
-      <!-- Lista dos selecionados -->
       <div style="margin-top:12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--txt3);margin-bottom:6px">Itens que serão movidos</div>
       <div class="rename-preview" id="agruparPreview"></div>
     </div>
-    <div class="mfot">
-      <button class="btn btn-ghost" id="agruparCancel">Cancelar</button>
-      <button class="btn btn-red" id="agruparSave">Confirmar agrupamento</button>
-    </div>
+    <div class="mfot"><button class="btn btn-ghost" id="agruparCancel">Cancelar</button><button class="btn btn-red" id="agruparSave">Confirmar agrupamento</button></div>
   </div>
 </div>
 
@@ -667,30 +600,45 @@ tr.row-edit td{background:#f4f0ff}
 
 <script>
 /* ═══════════════════════════════════════════════════════
-   VASPI ADMIN PANEL v3
-   admin.html | Sem backend | localStorage
-
-   ESTRUTURA DA PLANILHA:
-     Produto Base (GRID) — obrigatório — chave do card
-     Modelo              — opcional   — sub-agrupamento
-     Variação            — opcional   — detalhe da linha
-     Part Number         — obrigatório — identificador único
-     Categoria           — opcional
-     Linha               — opcional
-     Promoção            — opcional
+   VASPI ADMIN PANEL v4 — Firebase Edition
+   Dados salvos no Firestore: catalogo/produtos
 ═══════════════════════════════════════════════════════ */
 
 const PASSWORD = 'vaspi1244';
 
-// ── DB ──────────────────────────────────────────────
+// ── DB (Firebase) ─────────────────────────────────────
 const DB = {
-  get items()   { try{return JSON.parse(localStorage.getItem('vaspi_products')||'[]')}catch{return[]} },
-  set items(v)  { localStorage.setItem('vaspi_products',JSON.stringify(v)) },
-  get ignored() { try{return JSON.parse(localStorage.getItem('vaspi_ignored_alerts')||'[]')}catch{return[]} },
-  set ignored(v){ localStorage.setItem('vaspi_ignored_alerts',JSON.stringify(v)) },
+  _cache: null,
+  async getItems() {
+    if (this._cache !== null) return this._cache;
+    const items = await window._fbGetItems();
+    this._cache = items;
+    return items;
+  },
+  async setItems(v) {
+    this._cache = v;
+    setSyncStatus('saving');
+    const ok = await window._fbSetItems(v);
+    setSyncStatus(ok ? 'ok' : 'err');
+    return ok;
+  },
+  invalidate() { this._cache = null; }
 };
 
-// ── STATE ────────────────────────────────────────────
+function setSyncStatus(state) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    ok: { cls: 'sync-ok', txt: 'Firebase OK' },
+    saving: { cls: 'sync-saving', txt: 'Salvando…' },
+    err: { cls: 'sync-err', txt: 'Erro ao salvar!' },
+  };
+  const s = map[state] || map.ok;
+  el.className = 'sync-badge ' + s.cls;
+  el.innerHTML = `<span class="sync-dot"></span>${s.txt}`;
+}
+
+// ── STATE ─────────────────────────────────────────────
 const S = {
   pendingRows: [], pendingAlerts: [],
   editingPn: null,
@@ -700,7 +648,7 @@ const S = {
   tFiltered:[],
 };
 
-// ── TOAST ────────────────────────────────────────────
+// ── TOAST ─────────────────────────────────────────────
 function toast(msg, type='ok') {
   const w=document.getElementById('toastWrap');
   const t=document.createElement('div');
@@ -710,19 +658,23 @@ function toast(msg, type='ok') {
   setTimeout(()=>t.remove(),3500);
 }
 
-// ── LOCK ─────────────────────────────────────────────
+// ── LOCK ──────────────────────────────────────────────
 function setupLock() {
   const pw=document.getElementById('pwInput');
   const err=document.getElementById('pwErr');
   function tryLogin() {
-    if (pw.value===PASSWORD) { document.getElementById('lockScreen').style.display='none'; init(); }
-    else { err.textContent='Senha incorreta.'; pw.value=''; pw.focus(); }
+    if (pw.value===PASSWORD) {
+      document.getElementById('lockScreen').style.display='none';
+      startApp();
+    } else {
+      err.textContent='Senha incorreta.'; pw.value=''; pw.focus();
+    }
   }
   document.getElementById('pwBtn').addEventListener('click',tryLogin);
   pw.addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
 }
 
-// ── NAV ──────────────────────────────────────────────
+// ── NAV ───────────────────────────────────────────────
 function setupNav() {
   document.querySelectorAll('.nav-item[data-p]').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -731,45 +683,51 @@ function setupNav() {
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
       document.getElementById('panel-'+btn.dataset.p).classList.add('on');
       if (btn.dataset.p==='products') renderTable();
-      if (btn.dataset.p==='grupos')   { renderGrupos(); }
+      if (btn.dataset.p==='grupos') renderGrupos();
       if (btn.dataset.p==='dashboard') updateDash();
+      if (btn.dataset.p==='export') updateExportInfo();
     });
   });
 }
 
-// ── DASHBOARD ────────────────────────────────────────
-function updateDash() {
-  const items=DB.items;
-  const bases   = new Set(items.map(i=>i.produto_base).filter(Boolean));
+// ── DASHBOARD ─────────────────────────────────────────
+async function updateDash() {
+  const items = await DB.getItems();
+  const bases = new Set(items.map(i=>i.produto_base).filter(Boolean));
   const modelos = new Set(items.map(i=>i.modelo).filter(Boolean));
-  const edited  = items.filter(i=>i._edited).length;
-  const promo   = items.filter(i=>String(i.promocao||'').toLowerCase().startsWith('s')).length;
-  const novo    = items.filter(i=>String(i.tag_novo||'').toLowerCase().startsWith('s')).length;
-  const top     = items.filter(i=>String(i.tag_top||'').toLowerCase().startsWith('s')).length;
-  document.getElementById('st-items').textContent   = items.length;
-  document.getElementById('st-bases').textContent   = bases.size;
+  const edited = items.filter(i=>i._edited).length;
+  const promo = items.filter(i=>String(i.promocao||'').toLowerCase().startsWith('s')).length;
+  const novo = items.filter(i=>String(i.tag_novo||'').toLowerCase().startsWith('s')).length;
+  const top = items.filter(i=>String(i.tag_top||'').toLowerCase().startsWith('s')).length;
+  document.getElementById('st-items').textContent = items.length;
+  document.getElementById('st-bases').textContent = bases.size;
   document.getElementById('st-modelos').textContent = modelos.size;
-  document.getElementById('st-edited').textContent  = edited;
-  document.getElementById('st-promo').textContent   = promo;
-  // atualizar stat extras se existirem
-  const sn=document.getElementById('st-novo');  if(sn) sn.textContent=novo;
-  const st=document.getElementById('st-top');   if(st) st.textContent=top;
+  document.getElementById('st-edited').textContent = edited;
+  document.getElementById('st-promo').textContent = promo;
+  const sn=document.getElementById('st-novo'); if(sn) sn.textContent=novo;
+  const st=document.getElementById('st-top'); if(st) st.textContent=top;
   const s=document.getElementById('dash-status');
   if (!items.length) {
     s.innerHTML='Nenhum item importado. Acesse <strong>Importar Planilha</strong> para começar.';
   } else {
     s.innerHTML=`<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px">
-      <span><strong style="color:var(--red)">${items.length}</strong> linhas (PNs únicos)</span>
-      <span><strong style="color:var(--red)">${bases.size}</strong> produtos base (cards no grid)</span>
+      <span><strong style="color:var(--red)">${items.length}</strong> linhas</span>
+      <span><strong style="color:var(--red)">${bases.size}</strong> produtos base</span>
       <span><strong style="color:var(--grn)">${promo}</strong> em promoção</span>
       <span><strong style="color:#0055aa">${novo}</strong> novidades</span>
       <span><strong style="color:#b8860b">${top}</strong> mais vendidos</span>
     </div>
-    <div style="margin-top:8px;color:var(--grn);font-size:11px;font-weight:600">✓ Catálogo pronto para publicação</div>`;
+    <div style="margin-top:8px;color:var(--grn);font-size:11px;font-weight:600">✓ Dados sincronizados no Firebase — acessíveis de qualquer dispositivo</div>`;
   }
 }
 
-// ── IMPORT ───────────────────────────────────────────
+async function updateExportInfo() {
+  const items = await DB.getItems();
+  document.getElementById('fbSyncInfo').textContent =
+    `${items.length} itens armazenados no Firebase. Última atualização: agora.`;
+}
+
+// ── IMPORT ────────────────────────────────────────────
 function setupImport() {
   const zone=document.getElementById('dropzone');
   const fi=document.getElementById('fileInput');
@@ -778,8 +736,9 @@ function setupImport() {
   zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)readFile(f)});
   fi.addEventListener('change',e=>{ if(e.target.files[0]) readFile(e.target.files[0]) });
 
-  document.getElementById('btnConfirmImport').addEventListener('click',()=>{
-    DB.items.length>0 ? openImportModeModal() : doImport('replace',false);
+  document.getElementById('btnConfirmImport').addEventListener('click', async ()=>{
+    const items = await DB.getItems();
+    items.length>0 ? openImportModeModal() : doImport('replace',false);
   });
   document.getElementById('btnCancelImport').addEventListener('click',()=>{
     S.pendingRows=[]; document.getElementById('importPreview').style.display='none';
@@ -805,6 +764,7 @@ function readFile(file) {
   if (ext==='csv'){r.readAsText(file,'utf-8');r.onload=e=>parseSheet(e.target.result,'csv');}
   else{r.readAsArrayBuffer(file);r.onload=e=>parseSheet(e.target.result,'xlsx');}
 }
+
 function parseSheet(data,type) {
   try {
     const wb=type==='csv'?XLSX.read(data,{type:'string'}):XLSX.read(data,{type:'array'});
@@ -813,84 +773,70 @@ function parseSheet(data,type) {
   } catch(err){toast('Erro ao ler arquivo: '+err.message,'err');}
 }
 
-// ─ Mapeamento de colunas (aceita variações de nome)
 const nk = k => k.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
 const COL = {
-  // Chave → aliases aceitos
   produto_base:['produtobase','produto base','produtobasegrid','produto base grid','base','nome base','nomeproduto','produto','product','nome'],
-  modelo:      ['modelo','model','subgrupo','sub grupo','subproduto','tipo'],
-  variacao:    ['variacao','variação','variation','detalhe','descricao','description','especificacao'],
-  pn:          ['pn','partnumber','part number','referencia','ref','sku','codigo','cod'],
-  categoria:   ['categoria','category','cat'],
-  linha:       ['linha','line','sublinha','familia'],
-  promocao:    ['promocao','promoção','promo','promotion','oferta'],
-  tag_novo:    ['novo','novidade','new','lançamento','lancamento','tagnovo','tag novo'],
-  tag_top:     ['top','maisvendido','mais vendido','bestseller','best seller','tagvenda','tag top','destaque'],
+  modelo:['modelo','model','subgrupo','sub grupo','subproduto','tipo'],
+  variacao:['variacao','variação','variation','detalhe','descricao','description','especificacao'],
+  pn:['pn','partnumber','part number','referencia','ref','sku','codigo','cod'],
+  categoria:['categoria','category','cat'],
+  linha:['linha','line','sublinha','familia'],
+  promocao:['promocao','promoção','promo','promotion','oferta'],
+  tag_novo:['novo','novidade','new','lançamento','lancamento','tagnovo','tag novo'],
+  tag_top:['top','maisvendido','mais vendido','bestseller','best seller','tagvenda','tag top','destaque'],
 };
-function findCol(keys,field) {
-  return keys.find(k=>COL[field].includes(nk(k)))||null;
-}
+function findCol(keys,field){return keys.find(k=>COL[field].includes(nk(k)))||null;}
 
 function processRows(rows) {
   if (!rows.length){toast('Planilha vazia','err');return;}
   const keys=Object.keys(rows[0]);
   const cols=Object.fromEntries(Object.keys(COL).map(f=>[f,findCol(keys,f)]));
-
-  // Avisar sobre colunas não encontradas
   const missing=[];
   if (!cols.produto_base) missing.push('"Produto Base (GRID)"');
-  if (!cols.pn)           missing.push('"Part Number"');
-  if (missing.length) { toast('Colunas obrigatórias não encontradas: '+missing.join(', '), 'err'); return; }
-
-  const ignored=new Set(DB.ignored);
+  if (!cols.pn) missing.push('"Part Number"');
+  if (missing.length){toast('Colunas obrigatórias não encontradas: '+missing.join(', '),'err');return;}
   const alerts=[];
   const pnSeen={};
-
   const processed=rows.map((row,i)=>{
     const p={
-      produto_base: String(row[cols.produto_base]||'').trim(),
-      modelo:       String(cols.modelo?row[cols.modelo]||'':'').trim(),
-      variacao:     String(cols.variacao?row[cols.variacao]||'':'').trim(),
-      pn:           String(row[cols.pn]||'').trim(),
-      categoria:    String(cols.categoria?row[cols.categoria]||'':'').trim(),
-      linha:        String(cols.linha?row[cols.linha]||'':'').trim(),
-      promocao:     String(cols.promocao?row[cols.promocao]||'':'').trim(),
-      tag_novo:     String(cols.tag_novo?row[cols.tag_novo]||'':'').trim(),
-      tag_top:      String(cols.tag_top?row[cols.tag_top]||'':'').trim(),
+      produto_base:String(row[cols.produto_base]||'').trim(),
+      modelo:String(cols.modelo?row[cols.modelo]||'':'').trim(),
+      variacao:String(cols.variacao?row[cols.variacao]||'':'').trim(),
+      pn:String(row[cols.pn]||'').trim(),
+      categoria:String(cols.categoria?row[cols.categoria]||'':'').trim(),
+      linha:String(cols.linha?row[cols.linha]||'':'').trim(),
+      promocao:String(cols.promocao?row[cols.promocao]||'':'').trim(),
+      tag_novo:String(cols.tag_novo?row[cols.tag_novo]||'':'').trim(),
+      tag_top:String(cols.tag_top?row[cols.tag_top]||'':'').trim(),
       _row:i+2,_status:'ok',_alert:'',
     };
     if (!p.produto_base){p._status='err';p._alert+='Produto Base vazio. ';}
     if (!p.pn){p._status='err';p._alert+='PN vazio. ';}
-    if (p.pn&&pnSeen[p.pn]!==undefined) {
-      const ak='dup_'+p.pn;
-      if (!ignored.has(ak)) alerts.push({type:'dup',key:ak,msg:`PN duplicado: "${p.pn}" (linhas ${pnSeen[p.pn]} e ${p._row})`,ignored:false});
-      if (p._status==='ok') p._status='warn'; p._alert+='PN duplicado. ';
+    if (p.pn&&pnSeen[p.pn]!==undefined){
+      alerts.push({type:'dup',key:'dup_'+p.pn,msg:`PN duplicado: "${p.pn}" (linhas ${pnSeen[p.pn]} e ${p._row})`,ignored:false});
+      if(p._status==='ok')p._status='warn';p._alert+='PN duplicado. ';
     }
     if (p.pn) pnSeen[p.pn]=p._row;
     return p;
   });
-
   S.pendingRows=processed; S.pendingAlerts=alerts;
   const ok=processed.filter(p=>p._status==='ok').length;
   const warn=processed.filter(p=>p._status==='warn').length;
   const err=processed.filter(p=>p._status==='err').length;
   document.getElementById('prevStats').textContent=`${processed.length} linhas · ${ok} OK · ${warn} alertas · ${err} erros`;
-
   document.getElementById('importPreview').style.display='block';
   document.getElementById('prevBody').innerHTML=processed.slice(0,200).map(p=>`
     <tr class="${p._status!=='ok'?'row-warn':''}">
       <td><span class="base-tag">${p.produto_base||'—'}</span></td>
-      <td style="color:var(--txt2)">${p.modelo||''}</td>
-      <td style="color:var(--txt2)">${p.variacao||''}</td>
+      <td>${p.modelo||''}</td><td>${p.variacao||''}</td>
       <td><span class="pn-tag">${p.pn||'—'}</span></td>
       <td><span class="cat-tag">${p.categoria||'—'}</span></td>
-      <td style="color:var(--txt3)">${p.linha||''}</td>
+      <td>${p.linha||''}</td>
       <td>${String(p.promocao||'').toLowerCase().startsWith('s')?'<span class="promo-dot"></span>':''}</td>
       <td>${String(p.tag_novo||'').toLowerCase().startsWith('s')?'✨':''}</td>
       <td>${String(p.tag_top||'').toLowerCase().startsWith('s')?'⭐':''}</td>
       <td style="font-size:11px">${p._alert?`<span style="color:var(--warn)">⚠ ${p._alert}</span>`:'<span style="color:var(--grn)">✓</span>'}</td>
     </tr>`).join('')+(processed.length>200?`<tr><td colspan="10" style="text-align:center;color:var(--txt3);padding:8px">+${processed.length-200} linhas…</td></tr>`:'');
-
   renderAlerts();
 }
 
@@ -905,20 +851,18 @@ function renderAlerts() {
       <span class="alert-msg">${a.msg}</span>
       <div class="alert-acts"><button class="btn btn-xs btn-ghost" data-ai="${i}">Ignorar</button></div>
     </div>`).join('');
-  list.querySelectorAll('[data-ai]').forEach(b=>{ b.addEventListener('click',()=>{active[parseInt(b.dataset.ai)].ignored=true;renderAlerts();}); });
+  list.querySelectorAll('[data-ai]').forEach(b=>{b.addEventListener('click',()=>{active[parseInt(b.dataset.ai)].ignored=true;renderAlerts();});});
 }
 
 function openImportModeModal(){document.getElementById('importModeOvl').classList.add('o');}
 
-function doImport(mode,keepEdits) {
+async function doImport(mode,keepEdits) {
   const incoming=S.pendingRows
     .filter(p=>p._status!=='err')
     .map(p=>({produto_base:p.produto_base,modelo:p.modelo,variacao:p.variacao,pn:p.pn,categoria:p.categoria,linha:p.linha,promocao:p.promocao,tag_novo:p.tag_novo,tag_top:p.tag_top}));
-
   let final=[];
-  const existing=DB.items;
+  const existing = await DB.getItems();
   const editedPns=new Set(existing.filter(i=>i._edited).map(i=>i.pn));
-
   if (mode==='replace') {
     final=incoming.map(p=>{ if(keepEdits&&editedPns.has(p.pn)) return existing.find(e=>e.pn===p.pn)||p; return p; });
   } else if (mode==='merge') {
@@ -930,47 +874,43 @@ function doImport(mode,keepEdits) {
     const ex=new Set(existing.map(i=>i.pn));
     incoming.forEach(p=>{ if(!ex.has(p.pn)) final.push(p); });
   }
-
-  DB.items=final;
+  toast('Salvando no Firebase…','warn');
+  const ok = await DB.setItems(final);
   S.pendingRows=[];
   document.getElementById('importPreview').style.display='none';
   document.getElementById('alertsBox').classList.remove('v');
-  toast(`✓ ${final.length} itens salvos (modo: ${mode})`,'ok');
+  if (ok) toast(`✓ ${final.length} itens salvos no Firebase!`,'ok');
+  else toast('Erro ao salvar no Firebase.','err');
   updateDash();
 }
 
-// ── TABLE ────────────────────────────────────────────
-function renderTable() {
-  const items=DB.items;
+// ── TABLE ─────────────────────────────────────────────
+async function renderTable() {
+  const items = await DB.getItems();
   const {tQ,tBase,tCat,tPromo}=S;
-
-  // Preencher filtros de base e cat
   const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))].sort();
-  const cats =[...new Set(items.map(i=>i.categoria).filter(Boolean))].sort();
+  const cats=[...new Set(items.map(i=>i.categoria).filter(Boolean))].sort();
   const bSel=document.getElementById('tBaseFilter');
   const cSel=document.getElementById('tCatFilter');
   const bCur=bSel.value; const cCur=cSel.value;
   bSel.innerHTML='<option value="">Todos os produtos base</option>'+bases.map(b=>`<option value="${esc(b)}" ${b===bCur?'selected':''}>${b}</option>`).join('');
   cSel.innerHTML='<option value="">Todas as categorias</option>'+cats.map(c=>`<option value="${esc(c)}" ${c===cCur?'selected':''}>${c}</option>`).join('');
-
   let filtered=items.filter(i=>{
     if(tBase&&i.produto_base!==tBase) return false;
     if(tCat&&i.categoria!==tCat) return false;
     if(tPromo==='promo'&&!String(i.promocao||'').toLowerCase().startsWith('s')) return false;
-    if(tPromo==='novo' &&!String(i.tag_novo||'').toLowerCase().startsWith('s')) return false;
-    if(tPromo==='top'  &&!String(i.tag_top||'').toLowerCase().startsWith('s'))  return false;
-    if(tPromo==='edit' &&!i._edited) return false;
+    if(tPromo==='novo'&&!String(i.tag_novo||'').toLowerCase().startsWith('s')) return false;
+    if(tPromo==='top'&&!String(i.tag_top||'').toLowerCase().startsWith('s')) return false;
+    if(tPromo==='edit'&&!i._edited) return false;
     if(tQ){const h=[i.produto_base,i.modelo,i.variacao,i.pn,i.categoria].join(' ').toLowerCase();if(!h.includes(tQ.toLowerCase()))return false;}
     return true;
   });
-
   S.tFiltered=filtered;
   const total=filtered.length;
   const pages=Math.max(1,Math.ceil(total/S.tSize));
   if(S.tPage>pages) S.tPage=1;
   const start=(S.tPage-1)*S.tSize;
   const slice=filtered.slice(start,start+S.tSize);
-
   document.getElementById('tblCount').textContent=total+' itens';
   document.getElementById('pagInfo').textContent=`${start+1}–${Math.min(start+S.tSize,total)} de ${total}`;
 
@@ -982,106 +922,98 @@ function renderTable() {
     const isT=String(i.tag_top||'').toLowerCase().startsWith('s');
     return `<tr class="${sel?'sel':''}${i._edited?' row-edit':''}" data-pn="${esc(key)}">
       <td><input type="checkbox" class="rchk" data-pn="${esc(key)}" ${sel?'checked':''} style="accent-color:var(--red);cursor:pointer"></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-          <div class="base-chip" title="${esc(i.produto_base||'')}"><span>${i.produto_base||'—'}</span></div>
-          <button class="btn-move" data-move="${esc(key)}">↗ Mover</button>
-        </div>
-      </td>
-      <td style="color:var(--txt2)">${i.modelo||''}</td>
-      <td style="color:var(--txt2)">${i.variacao||''}</td>
+      <td><div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <div class="base-chip" title="${esc(i.produto_base||'')}"><span>${i.produto_base||'—'}</span></div>
+        <button class="btn-move" data-move="${esc(key)}">↗ Mover</button>
+      </div></td>
+      <td>${i.modelo||''}</td><td>${i.variacao||''}</td>
       <td><span class="pn-tag">${i.pn||'—'}</span></td>
       <td><span class="cat-tag">${i.categoria||'—'}</span></td>
       <td style="color:var(--txt3)">${i.linha||''}</td>
-      <td><button class="tag-toggle ${isP?'tag-on-promo':''}" data-tag="promocao" data-pn="${esc(key)}" title="${isP?'Desativar promoção':'Ativar promoção'}">${isP?'🔥':'○'}</button></td>
-      <td><button class="tag-toggle ${isN?'tag-on-novo':''}" data-tag="tag_novo" data-pn="${esc(key)}" title="${isN?'Remover novidade':'Marcar como novidade'}">${isN?'✨':'○'}</button></td>
-      <td><button class="tag-toggle ${isT?'tag-on-top':''}" data-tag="tag_top" data-pn="${esc(key)}" title="${isT?'Remover mais vendido':'Marcar mais vendido'}">${isT?'⭐':'○'}</button></td>
+      <td><button class="tag-toggle ${isP?'tag-on-promo':''}" data-tag="promocao" data-pn="${esc(key)}">${isP?'🔥':'○'}</button></td>
+      <td><button class="tag-toggle ${isN?'tag-on-novo':''}" data-tag="tag_novo" data-pn="${esc(key)}">${isN?'✨':'○'}</button></td>
+      <td><button class="tag-toggle ${isT?'tag-on-top':''}" data-tag="tag_top" data-pn="${esc(key)}">${isT?'⭐':'○'}</button></td>
       <td style="white-space:nowrap">
         ${i._edited?'<span class="edit-dot" title="Editado manualmente"></span>':''}
-        <button class="btn btn-ghost btn-xs" data-edit="${esc(key)}">Editar</button>
-        <button class="btn btn-danger btn-xs" data-del="${esc(key)}">Excluir</button>
+        <button class="btn btn-ghost btn-xs" data-edit="${esc(key)}">✏</button>
+        <button class="btn btn-danger btn-xs" data-del="${esc(key)}">✕</button>
       </td>
     </tr>`;
   }).join('');
 
-  // Eventos das linhas
-  document.getElementById('tBody').querySelectorAll('.rchk').forEach(cb=>{
-    cb.addEventListener('change',()=>{
-      const pn=cb.dataset.pn;
-      cb.checked?S.selectedPNs.add(pn):S.selectedPNs.delete(pn);
-      cb.closest('tr').classList.toggle('sel',cb.checked);
-      updateSelUI();
-    });
-  });
-  document.getElementById('tBody').querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click',()=>openEdit(btn.dataset.edit)));
-  document.getElementById('tBody').querySelectorAll('[data-move]').forEach(btn=>btn.addEventListener('click',()=>openMoveModal([btn.dataset.move])));
-  // Toggle de tags inline — clique ativa/desativa sem abrir modal
-  document.getElementById('tBody').querySelectorAll('.tag-toggle').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const {tag,pn}=btn.dataset;
-      const all=DB.items;
-      const idx=all.findIndex(i=>i.pn===pn);
-      if(idx<0) return;
-      const current=String(all[idx][tag]||'').toLowerCase().startsWith('s');
-      all[idx][tag]=current?'':'sim';
-      all[idx]._edited=true;
-      DB.items=all;
-      renderTable();
-    });
-  });
-  document.getElementById('tBody').querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const pn=btn.dataset.del;
-      if(!confirm(`Excluir item "${pn}"?`)) return;
-      DB.items=DB.items.filter(i=>i.pn!==pn);
-      toast('Item excluído.','warn'); renderTable();
-    });
-  });
+  // Paginação
+  const pagBtns=document.getElementById('pagBtns');
+  pagBtns.innerHTML='';
+  const addPb=(lbl,pg,dis)=>{const b=document.createElement('button');b.className='pb'+(pg===S.tPage?' on':'');b.textContent=lbl;b.disabled=!!dis;b.addEventListener('click',()=>{S.tPage=pg;renderTable();});pagBtns.appendChild(b);};
+  addPb('«',1,S.tPage===1);addPb('‹',S.tPage-1,S.tPage===1);
+  for(let p=Math.max(1,S.tPage-2);p<=Math.min(pages,S.tPage+2);p++) addPb(p,p);
+  addPb('›',S.tPage+1,S.tPage===pages);addPb('»',pages,S.tPage===pages);
+
+  // Eventos
   document.getElementById('chkAll').addEventListener('change',e=>{
-    slice.forEach(i=>{e.target.checked?S.selectedPNs.add(i.pn):S.selectedPNs.delete(i.pn)});
-    document.querySelectorAll('.rchk').forEach(c=>{c.checked=e.target.checked;c.closest('tr').classList.toggle('sel',e.target.checked)});
-    updateSelUI();
+    slice.forEach(i=>{ if(e.target.checked) S.selectedPNs.add(i.pn); else S.selectedPNs.delete(i.pn); });
+    updateSelCount(); renderTable();
   });
-
-  renderPag(pages);
+  document.querySelectorAll('.rchk').forEach(chk=>{
+    chk.addEventListener('change',e=>{
+      const pn=e.target.dataset.pn;
+      e.target.checked ? S.selectedPNs.add(pn) : S.selectedPNs.delete(pn);
+      updateSelCount();
+      const tr=e.target.closest('tr'); if(tr) tr.classList.toggle('sel',e.target.checked);
+    });
+  });
+  document.querySelectorAll('[data-tag]').forEach(btn=>{
+    btn.addEventListener('click',()=>toggleTag(btn.dataset.pn, btn.dataset.tag));
+  });
+  document.querySelectorAll('[data-edit]').forEach(btn=>{btn.addEventListener('click',()=>openEdit(btn.dataset.edit));});
+  document.querySelectorAll('[data-del]').forEach(btn=>{btn.addEventListener('click',()=>delItem(btn.dataset.del));});
+  document.querySelectorAll('[data-move]').forEach(btn=>{btn.addEventListener('click',()=>openMove(btn.dataset.move));});
 }
 
-function renderPag(pages) {
-  const cur=S.tPage;
-  const c=document.getElementById('pagBtns');
-  let h=`<button class="pb" ${cur===1?'disabled':''} data-pg="${cur-1}">‹</button>`;
-  for(let p=Math.max(1,cur-2);p<=Math.min(pages,cur+2);p++) h+=`<button class="pb ${p===cur?'on':''}" data-pg="${p}">${p}</button>`;
-  h+=`<button class="pb" ${cur===pages?'disabled':''} data-pg="${cur+1}">›</button>`;
-  c.innerHTML=h;
-  c.querySelectorAll('[data-pg]').forEach(b=>b.addEventListener('click',()=>{S.tPage=parseInt(b.dataset.pg);renderTable()}));
-}
-
-function updateSelUI() {
+function updateSelCount(){
   const n=S.selectedPNs.size;
   document.getElementById('selCntT').textContent=n;
   document.getElementById('btnAgruparSel').disabled=n<2;
   document.getElementById('btnDelSel').disabled=n===0;
 }
 
-function setupProductsPanel() {
-  const dS=deb(v=>{S.tQ=v;S.tPage=1;renderTable()},240);
-  document.getElementById('tSearch').addEventListener('input',e=>dS(e.target.value));
-  document.getElementById('tBaseFilter').addEventListener('change',e=>{S.tBase=e.target.value;S.tPage=1;renderTable()});
-  document.getElementById('tCatFilter').addEventListener('change',e=>{S.tCat=e.target.value;S.tPage=1;renderTable()});
-  document.getElementById('tPromoFilter').addEventListener('change',e=>{S.tPromo=e.target.value;S.tPage=1;renderTable()});
-  document.getElementById('btnAgruparSel').addEventListener('click',()=>{
-    openAgruparModal([...S.selectedPNs]);
-  });
-  document.getElementById('btnDelSel').addEventListener('click',()=>{
-    if(!confirm(`Excluir ${S.selectedPNs.size} itens selecionados?`)) return;
-    DB.items=DB.items.filter(i=>!S.selectedPNs.has(i.pn));
-    S.selectedPNs.clear(); updateSelUI(); toast('Itens excluídos.','warn'); renderTable();
-  });
+async function toggleTag(pn,tag){
+  const items = await DB.getItems();
+  const item=items.find(i=>i.pn===pn);
+  if(!item) return;
+  const isOn=String(item[tag]||'').toLowerCase().startsWith('s');
+  item[tag]=isOn?'':'sim';
+  item._edited=true;
+  await DB.setItems(items);
+  renderTable();
 }
 
-// ── EDIT ─────────────────────────────────────────────
-function openEdit(pn) {
-  const item=DB.items.find(i=>i.pn===pn);
+async function delItem(pn){
+  if(!confirm(`Excluir item "${pn}"?`)) return;
+  const items = await DB.getItems();
+  await DB.setItems(items.filter(i=>i.pn!==pn));
+  toast('Item excluído','ok'); renderTable(); updateDash();
+}
+
+function setupTableEvents(){
+  document.getElementById('tSearch').addEventListener('input',e=>{S.tQ=e.target.value;S.tPage=1;renderTable();});
+  document.getElementById('tBaseFilter').addEventListener('change',e=>{S.tBase=e.target.value;S.tPage=1;renderTable();});
+  document.getElementById('tCatFilter').addEventListener('change',e=>{S.tCat=e.target.value;S.tPage=1;renderTable();});
+  document.getElementById('tPromoFilter').addEventListener('change',e=>{S.tPromo=e.target.value;S.tPage=1;renderTable();});
+  document.getElementById('btnDelSel').addEventListener('click',async()=>{
+    if(!confirm(`Excluir ${S.selectedPNs.size} itens?`)) return;
+    const items = await DB.getItems();
+    await DB.setItems(items.filter(i=>!S.selectedPNs.has(i.pn)));
+    S.selectedPNs.clear(); updateSelCount();
+    toast('Itens excluídos','ok'); renderTable(); updateDash();
+  });
+  document.getElementById('btnAgruparSel').addEventListener('click',()=>openAgrupar());
+}
+
+// ── EDIT MODAL ────────────────────────────────────────
+async function openEdit(pn){
+  const items = await DB.getItems();
+  const item=items.find(i=>i.pn===pn);
   if(!item) return;
   S.editingPn=pn;
   document.getElementById('eProdutoBase').value=item.produto_base||'';
@@ -1093,381 +1025,252 @@ function openEdit(pn) {
   document.getElementById('ePromo').value=String(item.promocao||'').toLowerCase().startsWith('s')?'sim':'';
   document.getElementById('eNovo').value=String(item.tag_novo||'').toLowerCase().startsWith('s')?'sim':'';
   document.getElementById('eTop').value=String(item.tag_top||'').toLowerCase().startsWith('s')?'sim':'';
-
-  // Datalists
-  const items=DB.items;
-  const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))].sort();
-  const modelos=[...new Set(items.map(i=>i.modelo).filter(Boolean))].sort();
-  const cats=[...new Set(items.map(i=>i.categoria).filter(Boolean))].sort();
-  const lines=[...new Set(items.map(i=>i.linha).filter(Boolean))].sort();
+  const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))];
+  const mods=[...new Set(items.map(i=>i.modelo).filter(Boolean))];
+  const cats=[...new Set(items.map(i=>i.categoria).filter(Boolean))];
+  const linhas=[...new Set(items.map(i=>i.linha).filter(Boolean))];
   document.getElementById('ePbList').innerHTML=bases.map(b=>`<option value="${esc(b)}">`).join('');
-  document.getElementById('eModeloList').innerHTML=modelos.map(m=>`<option value="${esc(m)}">`).join('');
+  document.getElementById('eModeloList').innerHTML=mods.map(m=>`<option value="${esc(m)}">`).join('');
   document.getElementById('eCatList').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
-  document.getElementById('eLinhaList').innerHTML=lines.map(l=>`<option value="${esc(l)}">`).join('');
-
+  document.getElementById('eLinhaList').innerHTML=linhas.map(l=>`<option value="${esc(l)}">`).join('');
   document.getElementById('editOvl').classList.add('o');
 }
 
-function setupEdit() {
+function setupEditModal(){
   document.getElementById('editClose').addEventListener('click',()=>closeOvl('editOvl'));
   document.getElementById('editCancel').addEventListener('click',()=>closeOvl('editOvl'));
-  document.getElementById('editSave').addEventListener('click',()=>{
-    const items=DB.items;
+  document.getElementById('editSave').addEventListener('click',async()=>{
+    const items = await DB.getItems();
     const idx=items.findIndex(i=>i.pn===S.editingPn);
-    if(idx<0) return;
-    const pb=document.getElementById('eProdutoBase').value.trim();
-    const pn=document.getElementById('ePn').value.trim();
-    if(!pb){toast('Produto Base é obrigatório.','err');return;}
-    if(!pn){toast('Part Number é obrigatório.','err');return;}
-    items[idx].produto_base=pb;
-    items[idx].modelo=document.getElementById('eModelo').value.trim();
-    items[idx].variacao=document.getElementById('eVariacao').value.trim();
-    items[idx].pn=pn;
-    items[idx].categoria=document.getElementById('eCat').value.trim();
-    items[idx].linha=document.getElementById('eLinha').value.trim();
-    items[idx].promocao=document.getElementById('ePromo').value;
-    items[idx].tag_novo=document.getElementById('eNovo').value;
-    items[idx].tag_top=document.getElementById('eTop').value;
-    items[idx]._edited=true;
-    DB.items=items;
-    closeOvl('editOvl');
-    toast('Item atualizado!','ok');
-    renderTable();
+    if(idx===-1) return;
+    const newPn=document.getElementById('ePn').value.trim();
+    if(!newPn){toast('PN não pode ser vazio','err');return;}
+    if(newPn!==S.editingPn && items.find(i=>i.pn===newPn)){toast('PN já existe','err');return;}
+    items[idx]={
+      ...items[idx],
+      produto_base:document.getElementById('eProdutoBase').value.trim(),
+      modelo:document.getElementById('eModelo').value.trim(),
+      variacao:document.getElementById('eVariacao').value.trim(),
+      pn:newPn,
+      categoria:document.getElementById('eCat').value.trim(),
+      linha:document.getElementById('eLinha').value.trim(),
+      promocao:document.getElementById('ePromo').value,
+      tag_novo:document.getElementById('eNovo').value,
+      tag_top:document.getElementById('eTop').value,
+      _edited:true,
+    };
+    await DB.setItems(items);
+    closeOvl('editOvl'); toast('✓ Item atualizado e salvo no Firebase','ok');
+    renderTable(); updateDash();
   });
 }
 
-// ── AGRUPAMENTOS PANEL ───────────────────────────────
-function renderGrupos() {
-  const items  = DB.items;
-  const search = (document.getElementById('grpSearch')?.value||'').toLowerCase().trim();
+// ── MOVE MODAL ────────────────────────────────────────
+async function openMove(pn){
+  const items = await DB.getItems();
+  const item=items.find(i=>i.pn===pn);
+  if(!item) return;
+  S.movingPn=pn;
+  document.getElementById('movePnLabel').textContent=pn;
+  document.getElementById('moveCurrentGroup').textContent=item.produto_base||'—';
+  document.getElementById('moveTarget').value='';
+  const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))];
+  document.getElementById('moveTargetList').innerHTML=bases.map(b=>`<option value="${esc(b)}">`).join('');
+  document.getElementById('moveOvl').classList.add('o');
+}
 
-  // Construir mapa grupo → itens
-  const map = {};
-  items.forEach(i=>{
-    const base = i.produto_base||'(sem grupo)';
-    if(!map[base]) map[base]=[];
-    map[base].push(i);
+function setupMoveModal(){
+  document.getElementById('moveClose').addEventListener('click',()=>closeOvl('moveOvl'));
+  document.getElementById('moveCancel').addEventListener('click',()=>closeOvl('moveOvl'));
+  document.getElementById('moveSave').addEventListener('click',async()=>{
+    const target=document.getElementById('moveTarget').value.trim();
+    if(!target){toast('Digite um grupo','err');return;}
+    const items = await DB.getItems();
+    const item=items.find(i=>i.pn===S.movingPn);
+    if(!item) return;
+    item.produto_base=target; item._edited=true;
+    await DB.setItems(items);
+    closeOvl('moveOvl'); toast(`✓ Movido para "${target}"`,'ok');
+    renderTable(); updateDash();
   });
+}
 
-  // Ordenar grupos A-Z
-  let grupos = Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0],'pt'));
-
-  // Filtrar por busca
-  if (search) grupos = grupos.filter(([nome])=>nome.toLowerCase().includes(search));
-
-  document.getElementById('grpCountBadge').textContent =
-    grupos.length + ' grupo' + (grupos.length!==1?'s':'');
-
-  const container = document.getElementById('grpList');
-  if (!grupos.length) {
-    container.innerHTML = `<div class="empty-notice">${items.length?'Nenhum grupo encontrado.':'Nenhum item importado ainda.'}</div>`;
-    return;
-  }
-
-  container.innerHTML = grupos.map(([nome, arr],gi)=>`
-    <div class="gc" data-grp="${esc(nome)}">
-      <div class="gc-head" data-gi="${gi}">
-        <div class="gc-name">${nome}</div>
-        <span class="gc-cnt">${arr.length} ${arr.length===1?'item':'itens'}</span>
-        <svg class="gc-chevron" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+// ── GRUPOS ────────────────────────────────────────────
+async function renderGrupos(){
+  const items = await DB.getItems();
+  const q=(document.getElementById('grpSearch').value||'').toLowerCase();
+  const map={};
+  items.forEach(i=>{
+    const base=String(i.produto_base||'').trim(); if(!base) return;
+    if(!map[base]) map[base]={name:base,items:[]};
+    map[base].items.push(i);
+  });
+  let groups=Object.values(map).sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+  if(q) groups=groups.filter(g=>g.name.toLowerCase().includes(q));
+  document.getElementById('grpCountBadge').textContent=`${groups.length} grupos`;
+  const el=document.getElementById('grpList');
+  if(!groups.length){el.innerHTML='<div class="empty-notice">Nenhum grupo encontrado.</div>';return;}
+  el.innerHTML=groups.map(g=>`
+    <div class="gc">
+      <div class="gc-head" data-grp="${esc(g.name)}">
+        <div class="gc-name">${g.name}</div>
+        <span class="gc-cnt">${g.items.length} PN${g.items.length!==1?'s':''}</span>
+        <button class="btn btn-ghost btn-xs" data-rename="${esc(g.name)}" style="flex-shrink:0">✏ Renomear</button>
+        <svg class="gc-chevron" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </div>
-      <div class="gc-body" id="gcb-${gi}">
-        ${arr.sort((a,b)=>String(a.pn||'').localeCompare(String(b.pn||''),undefined,{numeric:true}))
-            .map(i=>`
+      <div class="gc-body">
+        ${g.items.map(i=>`
           <div class="gi-row">
-            <span class="gi-pn">${i.pn||'—'}</span>
+            <span class="gi-pn">${i.pn}</span>
             <span class="gi-modelo">${i.modelo||''}</span>
             <span class="gi-var">${i.variacao||''}</span>
             <div class="gi-acts">
-              <button class="btn-move" data-grmove="${esc(i.pn)}">↗ Mover</button>
-              <button class="btn btn-danger btn-xs" data-grdel="${esc(i.pn)}">×</button>
+              <button class="btn-move" data-move="${esc(i.pn)}">↗ Mover</button>
+              <button class="btn btn-danger btn-xs" data-del="${esc(i.pn)}">✕</button>
             </div>
           </div>`).join('')}
-        <div class="gc-foot">
-          <button class="btn btn-ghost btn-sm" data-rename="${esc(nome)}">✏ Renomear grupo</button>
-          <button class="btn btn-danger btn-sm" data-disband="${esc(nome)}">Desmembrar</button>
-        </div>
       </div>
     </div>`).join('');
 
-  // ─ Eventos
-  container.querySelectorAll('.gc-head').forEach(hd=>{
-    hd.addEventListener('click', e=>{
-      if (e.target.closest('button')) return;
-      const gi = hd.dataset.gi;
-      const body = document.getElementById('gcb-'+gi);
-      const open = body.classList.toggle('open');
-      hd.classList.toggle('open', open);
+  el.querySelectorAll('.gc-head').forEach(h=>{
+    h.addEventListener('click',e=>{
+      if(e.target.closest('[data-rename]')) return;
+      const body=h.nextElementSibling;
+      h.classList.toggle('open'); body.classList.toggle('open');
     });
   });
-
-  // Renomear grupo
-  container.querySelectorAll('[data-rename]').forEach(btn=>{
-    btn.addEventListener('click',()=>openRenameModal(btn.dataset.rename));
-  });
-
-  // Desmembrar grupo: cada item vira seu próprio produto_base (usa o PN)
-  container.querySelectorAll('[data-disband]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const nome = btn.dataset.disband;
-      const grpItems = DB.items.filter(i=>(i.produto_base||'(sem grupo)')===nome);
-      if (!confirm(`Desmembrar "${nome}"?\n${grpItems.length} itens virarão cards individuais no grid.`)) return;
-      const all = DB.items;
-      grpItems.forEach(i=>{
-        const idx = all.findIndex(x=>x.pn===i.pn);
-        if (idx>=0) { all[idx].produto_base = i.pn; all[idx]._edited=true; }
-      });
-      DB.items=all;
-      toast(`Grupo "${nome}" desmembrado em ${grpItems.length} itens.`,'warn');
-      renderGrupos(); updateDash();
-    });
-  });
-
-  // Mover item individual pelo painel
-  container.querySelectorAll('[data-grmove]').forEach(btn=>{
-    btn.addEventListener('click',()=>openMoveModal([btn.dataset.grmove], renderGrupos));
-  });
-
-  // Excluir item pelo painel
-  container.querySelectorAll('[data-grdel]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const pn = btn.dataset.grdel;
-      if (!confirm(`Excluir item "${pn}"?`)) return;
-      DB.items = DB.items.filter(i=>i.pn!==pn);
-      toast('Item excluído.','warn'); renderGrupos(); updateDash();
-    });
-  });
+  el.querySelectorAll('[data-rename]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();openRename(btn.dataset.rename);});});
+  el.querySelectorAll('[data-move]').forEach(btn=>{btn.addEventListener('click',()=>openMove(btn.dataset.move));});
+  el.querySelectorAll('[data-del]').forEach(btn=>{btn.addEventListener('click',()=>delItem(btn.dataset.del));});
 }
 
-function setupGruposPanel() {
-  const dS = deb(()=>renderGrupos(), 240);
-  document.getElementById('grpSearch').addEventListener('input', dS);
-}
-
-// ── MODAL: MOVER ITEM(S) PARA GRUPO ──────────────────
-// pns = array de PNs; onDone = callback opcional após salvar
-function openMoveModal(pns, onDone) {
-  S._movePns = pns;
-  S._moveOnDone = onDone || null;
-
-  const item = DB.items.find(i=>i.pn===pns[0]);
-  const label = pns.length===1 ? pns[0] : `${pns.length} itens`;
-  const current = item?.produto_base || '';
-
-  document.getElementById('movePnLabel').textContent = label;
-  document.getElementById('moveCurrentGroup').textContent = current || '(sem grupo)';
-  document.getElementById('moveTarget').value = current;
-
-  // Datalist com grupos existentes
-  const bases = [...new Set(DB.items.map(i=>i.produto_base).filter(Boolean))].sort();
-  document.getElementById('moveTargetList').innerHTML = bases.map(b=>`<option value="${esc(b)}">`).join('');
-
-  document.getElementById('moveOvl').classList.add('o');
-  setTimeout(()=>document.getElementById('moveTarget').focus(),80);
-}
-
-function setupMoveModal() {
-  document.getElementById('moveClose').addEventListener('click',()=>closeOvl('moveOvl'));
-  document.getElementById('moveCancel').addEventListener('click',()=>closeOvl('moveOvl'));
-  document.getElementById('moveSave').addEventListener('click',()=>{
-    const target = document.getElementById('moveTarget').value.trim();
-    if (!target){toast('Informe o nome do grupo destino.','err');return;}
-    const all = DB.items;
-    S._movePns.forEach(pn=>{
-      const idx=all.findIndex(i=>i.pn===pn);
-      if(idx>=0){all[idx].produto_base=target;all[idx]._edited=true;}
-    });
-    DB.items=all;
-    closeOvl('moveOvl');
-    toast(`${S._movePns.length===1?'Item movido':'Itens movidos'} para "${target}".`,'ok');
-    if (S._moveOnDone) S._moveOnDone();
-    renderTable(); updateDash();
-  });
-}
-
-// ── MODAL: RENOMEAR GRUPO ─────────────────────────────
-function openRenameModal(nome) {
-  S._renameOld = nome;
-  document.getElementById('renameOld').value = nome;
-  document.getElementById('renameNew').value = nome;
-
-  // Preview: quantos itens serão afetados
-  const affected = DB.items.filter(i=>i.produto_base===nome);
-  document.getElementById('renamePreview').innerHTML =
-    `<strong>${affected.length} ${affected.length===1?'item será renomeado':'itens serão renomeados'}</strong>` +
-    (affected.length<=10
-      ? '<br>' + affected.map(i=>`• ${i.pn}${i.variacao?' — '+i.variacao:''}`).join('<br>')
-      : '');
-
+// ── RENAME MODAL ──────────────────────────────────────
+async function openRename(name){
+  const items = await DB.getItems();
+  S.renamingGroup=name;
+  document.getElementById('renameOld').value=name;
+  document.getElementById('renameNew').value=name;
+  const count=items.filter(i=>i.produto_base===name).length;
+  document.getElementById('renamePreview').innerHTML=`<strong>${count}</strong> itens serão renomeados.`;
   document.getElementById('renameOvl').classList.add('o');
-  setTimeout(()=>{
-    const inp=document.getElementById('renameNew');
-    inp.focus(); inp.select();
-  },80);
 }
 
-function setupRenameModal() {
+function setupRenameModal(){
   document.getElementById('renameClose').addEventListener('click',()=>closeOvl('renameOvl'));
   document.getElementById('renameCancel').addEventListener('click',()=>closeOvl('renameOvl'));
-  document.getElementById('renameSave').addEventListener('click',()=>{
-    const newName = document.getElementById('renameNew').value.trim();
-    if (!newName){toast('Informe o novo nome.','err');return;}
-    if (newName===S._renameOld){closeOvl('renameOvl');return;}
-    const all=DB.items;
-    let count=0;
-    all.forEach((i,idx)=>{
-      if(i.produto_base===S._renameOld){all[idx].produto_base=newName;all[idx]._edited=true;count++;}
-    });
-    DB.items=all;
-    closeOvl('renameOvl');
-    toast(`"${S._renameOld}" → "${newName}" (${count} itens atualizados).`,'ok');
-    renderGrupos(); renderTable(); updateDash();
-  });
-
-  // Preview ao digitar
-  document.getElementById('renameNew').addEventListener('input', e=>{
-    const v=e.target.value.trim();
-    const affected=DB.items.filter(i=>i.produto_base===S._renameOld);
-    document.getElementById('renamePreview').innerHTML=
-      `<strong>${affected.length} ${affected.length===1?'item':'itens'}</strong> serão renomeados para "<strong>${v||'…'}</strong>"`;
+  document.getElementById('renameSave').addEventListener('click',async()=>{
+    const newName=document.getElementById('renameNew').value.trim();
+    if(!newName){toast('Nome vazio','err');return;}
+    const items = await DB.getItems();
+    items.forEach(i=>{ if(i.produto_base===S.renamingGroup){i.produto_base=newName;i._edited=true;} });
+    await DB.setItems(items);
+    closeOvl('renameOvl'); toast(`✓ Grupo renomeado para "${newName}"`,'ok');
+    renderGrupos(); updateDash();
   });
 }
 
-// ── MODAL: AGRUPAR SELECIONADOS ───────────────────────
-function openAgruparModal(pns) {
-  S._agruparPns = pns;
-
-  const items = DB.items;
-  document.getElementById('agruparCount').textContent = pns.length + ' ' + (pns.length===1?'item':'itens');
-
-  // Sugerir o produto_base mais comum entre os selecionados
-  const freq={};
-  pns.forEach(pn=>{ const i=items.find(x=>x.pn===pn); if(i?.produto_base){freq[i.produto_base]=(freq[i.produto_base]||0)+1;} });
-  const suggested = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
-  document.getElementById('agruparTarget').value = suggested;
-
-  // Datalist
-  const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))].sort();
+// ── AGRUPAR MODAL ─────────────────────────────────────
+async function openAgrupar(){
+  const items = await DB.getItems();
+  const pns=[...S.selectedPNs];
+  document.getElementById('agruparCount').textContent=pns.length;
+  document.getElementById('agruparTarget').value='';
+  const bases=[...new Set(items.map(i=>i.produto_base).filter(Boolean))];
   document.getElementById('agruparTargetList').innerHTML=bases.map(b=>`<option value="${esc(b)}">`).join('');
-
-  // Preview dos selecionados
-  document.getElementById('agruparPreview').innerHTML = pns.map(pn=>{
-    const i=items.find(x=>x.pn===pn);
-    return `<div style="padding:2px 0"><span style="color:var(--red);font-family:var(--fd)">${pn}</span>${i?` — ${i.produto_base||''} ${i.variacao?'/ '+i.variacao:''}`:''}`;
-  }).join('');
-
+  const sel=items.filter(i=>pns.includes(i.pn));
+  document.getElementById('agruparPreview').innerHTML=sel.map(i=>`<div style="padding:2px 0"><strong style="color:var(--red)">${i.pn}</strong> — ${i.produto_base||'?'}</div>`).join('');
   document.getElementById('agruparOvl').classList.add('o');
-  setTimeout(()=>document.getElementById('agruparTarget').focus(),80);
 }
 
-function setupAgruparModal() {
+function setupAgruparModal(){
   document.getElementById('agruparClose').addEventListener('click',()=>closeOvl('agruparOvl'));
   document.getElementById('agruparCancel').addEventListener('click',()=>closeOvl('agruparOvl'));
-  document.getElementById('agruparSave').addEventListener('click',()=>{
+  document.getElementById('agruparSave').addEventListener('click',async()=>{
     const target=document.getElementById('agruparTarget').value.trim();
-    if(!target){toast('Informe o nome do grupo.','err');return;}
-    const all=DB.items;
-    S._agruparPns.forEach(pn=>{
-      const idx=all.findIndex(i=>i.pn===pn);
-      if(idx>=0){all[idx].produto_base=target;all[idx]._edited=true;}
-    });
-    DB.items=all;
-    S.selectedPNs.clear(); updateSelUI();
-    closeOvl('agruparOvl');
-    toast(`${S._agruparPns.length} itens agrupados em "${target}".`,'ok');
+    if(!target){toast('Digite um nome de grupo','err');return;}
+    const items = await DB.getItems();
+    items.forEach(i=>{ if(S.selectedPNs.has(i.pn)){i.produto_base=target;i._edited=true;} });
+    await DB.setItems(items);
+    S.selectedPNs.clear(); updateSelCount();
+    closeOvl('agruparOvl'); toast(`✓ ${document.getElementById('agruparCount').textContent} itens agrupados em "${target}"`,'ok');
     renderTable(); updateDash();
   });
 }
 
-// ── EXPORT ───────────────────────────────────────────
-function setupExport() {
-  // ── Exportar produtos.json (para subir no GitHub) ──
-  document.getElementById('btnExportJson').addEventListener('click',()=>{
-    const items = DB.items;
-    if (!items.length) { toast('Nenhum item para exportar.','warn'); return; }
-
-    // Exporta apenas os campos necessários para o catálogo público
-    // Remove campos internos (_edited, _row, _status, _alert)
-    const publicItems = items.map(i=>({
-      produto_base: i.produto_base,
-      modelo:       i.modelo       || '',
-      variacao:     i.variacao     || '',
-      pn:           i.pn,
-      categoria:    i.categoria    || '',
-      linha:        i.linha        || '',
-      promocao:     i.promocao     || '',
-      tag_novo:     i.tag_novo     || '',
-      tag_top:      i.tag_top      || '',
-    }));
-
-    const blob = new Blob([JSON.stringify(publicItems, null, 2)], {type:'application/json'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'produtos.json';   // nome exato que o catálogo busca
-    a.click();
-    URL.revokeObjectURL(url);
-
-    document.getElementById('exportStats').textContent =
-      `✓ ${publicItems.length} produtos exportados — suba este arquivo no GitHub para publicar.`;
-    toast(`produtos.json exportado com ${publicItems.length} itens!`,'ok');
+// ── EXPORT ────────────────────────────────────────────
+function setupExport(){
+  document.getElementById('btnExport').addEventListener('click',async()=>{
+    const items = await DB.getItems();
+    download(JSON.stringify({vaspi_backup:true,items,exportedAt:new Date().toISOString()},null,2),'vaspi_backup.json','application/json');
+    toast('Backup exportado','ok');
   });
-
-  // ── Backup completo (para restaurar o admin) ──
-  document.getElementById('btnExport').addEventListener('click',()=>{
-    const data={version:4,exportedAt:new Date().toISOString(),items:DB.items};
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=`vaspi-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Backup completo exportado!','ok');
-  });
-
-  // ── Restaurar backup ──
   document.getElementById('btnImportBk').addEventListener('click',()=>document.getElementById('bkFileInput').click());
   document.getElementById('bkFileInput').addEventListener('change',e=>{
     const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader(); r.readAsText(f);
-    r.onload=ev=>{
+    const r=new FileReader();
+    r.onload=async ev=>{
       try{
-        const data=JSON.parse(ev.target.result);
-        const arr=data.items||data.products||(Array.isArray(data)?data:null);
-        if(!arr) throw new Error('Formato inválido');
-        if(!confirm(`Importar backup com ${arr.length} itens? Isso substituirá os dados atuais.`)) return;
-        DB.items=arr; toast('Backup restaurado!','ok'); updateDash();
-      }catch(err){toast('Arquivo inválido: '+err.message,'err');}
+        const d=JSON.parse(ev.target.result);
+        const arr=d.items||d;
+        if(!Array.isArray(arr)) throw new Error('Formato inválido');
+        await DB.setItems(arr);
+        toast(`✓ ${arr.length} itens restaurados do backup`,'ok'); updateDash();
+      }catch(err){toast('Erro ao importar backup: '+err.message,'err');}
     };
+    r.readAsText(f);
   });
-
-  // ── Limpar tudo ──
-  document.getElementById('btnClear').addEventListener('click',()=>{
-    if(!confirm('ATENÇÃO: Apagar TODOS os dados do admin?')) return;
-    if(!confirm('Confirme novamente: apagar tudo?')) return;
-    ['vaspi_products','vaspi_ignored_alerts'].forEach(k=>localStorage.removeItem(k));
-    toast('Dados removidos.','warn'); updateDash();
+  document.getElementById('btnClear').addEventListener('click',async()=>{
+    if(!confirm('Tem certeza? Isso remove TODOS os dados do Firebase!')) return;
+    await DB.setItems([]);
+    DB.invalidate();
+    toast('Todos os dados removidos','warn'); updateDash();
   });
 }
 
-// ── HELPERS ──────────────────────────────────────────
-const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const deb=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}};
+function download(content,filename,mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download=filename; a.click();
+}
+
+// ── SEARCH ────────────────────────────────────────────
+function setupGrpSearch(){
+  document.getElementById('grpSearch').addEventListener('input',()=>renderGrupos());
+}
+
+// ── HELPERS ───────────────────────────────────────────
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function closeOvl(id){document.getElementById(id).classList.remove('o');}
-document.querySelectorAll('.ovl').forEach(o=>{
-  o.addEventListener('click',e=>{ if(e.target===e.currentTarget) o.classList.remove('o'); });
-});
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelectorAll('.ovl.o').forEach(o=>o.classList.remove('o')); });
+document.addEventListener('keydown',e=>{if(e.key==='Escape') document.querySelectorAll('.ovl.o').forEach(o=>o.classList.remove('o'));});
+document.querySelectorAll('.ovl').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('o');}));
 
-// ── INIT ─────────────────────────────────────────────
-function init() {
-  setupNav(); setupImport(); setupProductsPanel(); setupEdit();
-  setupGruposPanel(); setupMoveModal(); setupRenameModal(); setupAgruparModal();
-  setupExport(); updateDash();
+// ── INIT ──────────────────────────────────────────────
+async function startApp() {
+  setupNav();
+  setupImport();
+  setupTableEvents();
+  setupEditModal();
+  setupMoveModal();
+  setupRenameModal();
+  setupAgruparModal();
+  setupExport();
+  setupGrpSearch();
+  await updateDash();
 }
 
-document.addEventListener('DOMContentLoaded', setupLock);
+// Aguardar Firebase estar pronto
+document.addEventListener('firebase-ready', () => {
+  document.getElementById('loadingOverlay').style.display='none';
+  document.getElementById('lockScreen').style.display='flex';
+  setupLock();
+});
+
+// Timeout de segurança caso Firebase demore
+setTimeout(()=>{
+  if (!window._firebaseReady) {
+    document.getElementById('loadingOverlay').innerHTML='<div class="load-logo">VASPI</div><div style="color:var(--red);font-size:13px">Erro ao conectar ao Firebase.<br>Verifique sua conexão e recarregue.</div>';
+  }
+}, 8000);
 </script>
 </body>
 </html>
