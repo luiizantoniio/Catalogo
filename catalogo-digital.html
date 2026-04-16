@@ -387,20 +387,12 @@ function applyAll() {
   if (f.top)        res = res.filter(g => g.top);
 
   if (q) {
-    res = res.filter(g => {
-      const parts = [g.name, g.mainPn];
-      Object.entries(g.modelos).forEach(([mod, its]) => {
-        if (mod) parts.push(mod);
-        its.forEach(i => { parts.push(i.variacao||''); parts.push(i.pn||''); });
-      });
-      return fuzzy(parts.join(' '), q);
-    });
+    const qn = norm(q.trim());
+    res = res.filter(g => matchGroup(g, qn));
   }
 
-  // Ordenação
   res = [...res].sort((a,b) => {
     if (sort === 'alpha') return a.name.localeCompare(b.name, 'pt');
-    // Padrão: por PN principal, crescente (numérico)
     return a.mainPn.localeCompare(b.mainPn, undefined, {numeric:true});
   });
 
@@ -408,12 +400,40 @@ function applyAll() {
   rerender();
 }
 
-function fuzzy(text, q) {
-  const t=norm(text), s=norm(q);
-  if (t.includes(s)) return true;
-  if (s.length>=4) for(let i=0;i<s.length;i++) if(t.includes(s.slice(0,i)+s.slice(i+1))) return true;
+// ── Lógica de match ───────────────────────────────────
+// Regras claras e sem falsos positivos:
+//  · Nome/modelo/variação: substring contínua (inclui a query inteira)
+//  · PN: prefixo exato — "1001" bate "1001", "1001.01" mas NÃO "21001" ou "31001"
+//    (requer ao menos 2 chars para evitar que "1" traga tudo)
+function matchGroup(g, qn) {
+  if (!qn) return true;
+
+  // 1. Nome do produto base
+  if (norm(g.name).includes(qn)) return true;
+
+  // 2. PNs de todas as variações — prefixo exato
+  if (qn.length >= 2) {
+    const allItems = Object.values(g.modelos).flat();
+    for (const item of allItems) {
+      const pn = norm(item.pn || '');
+      // Bate se: PN é exatamente a query, ou começa com query seguida de ponto
+      if (pn === qn || pn.startsWith(qn + '.') || pn.startsWith(qn + '-')) return true;
+      // Também bate se a query tem ponto (ex: "1001.0") — substring do PN
+      if (qn.includes('.') && pn.startsWith(qn)) return true;
+    }
+  }
+
+  // 3. Modelo e variação — substring contínua
+  for (const [mod, items] of Object.entries(g.modelos)) {
+    if (mod && norm(mod).includes(qn)) return true;
+    for (const item of items) {
+      if (item.variacao && norm(item.variacao).includes(qn)) return true;
+    }
+  }
+
   return false;
 }
+
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
 // ── Render grid ───────────────────────────────────────
