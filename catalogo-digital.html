@@ -401,33 +401,22 @@ function applyAll() {
 }
 
 // ── Lógica de match ───────────────────────────────────
-// Regras claras e sem falsos positivos:
-//  · Nome/modelo/variação: substring contínua (inclui a query inteira)
-//  · PN: prefixo exato — "1001" bate "1001", "1001.01" mas NÃO "21001" ou "31001"
-//    (requer ao menos 2 chars para evitar que "1" traga tudo)
+// Busca em: nome do produto (Produto Base) + PN
+// NÃO busca em modelo/variação para evitar falsos positivos
 function matchGroup(g, qn) {
   if (!qn) return true;
 
-  // 1. Nome do produto base
+  // 1. Nome do produto base — substring contínua
   if (norm(g.name).includes(qn)) return true;
 
-  // 2. PNs de todas as variações — prefixo exato
+  // 2. PNs — prefixo exato (mínimo 2 chars)
   if (qn.length >= 2) {
     const allItems = Object.values(g.modelos).flat();
     for (const item of allItems) {
       const pn = norm(item.pn || '');
-      // Bate se: PN é exatamente a query, ou começa com query seguida de ponto
-      if (pn === qn || pn.startsWith(qn + '.') || pn.startsWith(qn + '-')) return true;
-      // Também bate se a query tem ponto (ex: "1001.0") — substring do PN
+      if (pn === qn) return true;
+      if (pn.startsWith(qn + '.') || pn.startsWith(qn + '-')) return true;
       if (qn.includes('.') && pn.startsWith(qn)) return true;
-    }
-  }
-
-  // 3. Modelo e variação — substring contínua
-  for (const [mod, items] of Object.entries(g.modelos)) {
-    if (mod && norm(mod).includes(qn)) return true;
-    for (const item of items) {
-      if (item.variacao && norm(item.variacao).includes(qn)) return true;
     }
   }
 
